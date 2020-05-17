@@ -4,6 +4,7 @@ const fs = require("fs");
 
 const BANK_MEGA_HOSTNAME = "https://www.bankmega.com/";
 const BANK_MEGA_MAIN_PAGE_ENDPOINT = "promolainnya.php";
+const FILE_NAME = "solution.json";
 
 async function scrapeData() {
 	var mainPageHtml = await sendGetRequest(
@@ -12,29 +13,28 @@ async function scrapeData() {
 	var promoDivHtml = cheerio("#contentpromolain2", mainPageHtml).html();
 
 	var categories = await getCategories(promoDivHtml);
+	let promotionsToSave = {};
 
-	var allPromotions = {};
-
-	for (const index in categories) {
-		if (categories[index]) {
-			var promotionByCategory = await getPromosByCategory(categories[index]);
-			Object.assign(allPromotions, promotionByCategory);
-		}
-	}
-	saveToJson(allPromotions);
+	Promise.all(categories.map(getPromosByCategory)).then((allPromotions) => {
+		allPromotions.map((promotionsByCategory) =>
+			Object.assign(promotionsToSave, promotionsByCategory)
+		);
+		saveToJson(promotionsToSave, FILE_NAME);
+	});
 }
 
 async function sendGetRequest(url) {
-	let response = await axios.get(url);
-	if (response && response.status === 200 && response.data) {
-		return response.data;
-	} else {
-		Promise.reject(
-			console.error(
-				`Request to ${url} returns ${response.status} with message ${response.statusText}`
-			)
-		);
-	}
+	return axios.get(url).then((response) => {
+		if (response && response.status === 200 && response.data) {
+			return response.data;
+		} else {
+			Promise.reject(
+				console.error(
+					`Request to ${url} returns ${response.status} with message ${response.statusText}`
+				)
+			);
+		}
+	});
 }
 
 async function getCategories() {
@@ -108,11 +108,19 @@ async function getPromo(mainPageResponse) {
 
 async function getPromoByPage(mainPageHtml) {
 	var promos = await getPromo(mainPageHtml);
-	for (const promo of promos) {
-		var details = await getPromoDetails(BANK_MEGA_HOSTNAME + promo.url);
-		promo.details = details;
-	}
-	return promos;
+
+	return Promise.all(
+		promos.map((promo) => {
+			return getPromoDetails(BANK_MEGA_HOSTNAME + promo.url);
+		})
+	).then((allPromoDetails) => {
+		var promosIndex = 0;
+		allPromoDetails.map((promoDetails) => {
+			Object.assign(promos[promosIndex], promoDetails);
+			promosIndex++;
+		});
+		return promos;
+	});
 }
 
 async function getPromosByCategory(category) {
@@ -142,9 +150,8 @@ async function getPromosByCategory(category) {
 	return promoByCategory;
 }
 
-async function saveToJson(promotions) {
+async function saveToJson(promotions, fileName) {
 	const promotionsJson = JSON.stringify(promotions, null, 2);
-	const fileName = "solution.json";
 	fs.writeFile(fileName, promotionsJson, "utf-8", () => {
 		console.log(`Promotions data saved to ${fileName}`);
 	});
