@@ -15,26 +15,45 @@ async function scrapeData() {
 	var categories = await getCategories(promoDivHtml);
 	let promotionsToSave = {};
 
-	Promise.all(categories.map(getPromosByCategory)).then((allPromotions) => {
-		allPromotions.map((promotionsByCategory) =>
-			Object.assign(promotionsToSave, promotionsByCategory)
+	Promise.all(categories.map(getPromosByCategory))
+		.then((allPromotions) => {
+			allPromotions.map((promotionsByCategory) =>
+				Object.assign(promotionsToSave, promotionsByCategory)
+			);
+			saveToJson(promotionsToSave, FILE_NAME);
+		})
+		.catch((err) =>
+			console.error(
+				`Fetching promotions by category failed with message ${err}`
+			)
 		);
-		saveToJson(promotionsToSave, FILE_NAME);
-	});
+}
+
+function buildUrl(page = "", subcat = "") {
+	return (
+		BANK_MEGA_HOSTNAME +
+		BANK_MEGA_MAIN_PAGE_ENDPOINT +
+		`?product=0&subcat=${subcat}&page=${page}`
+	);
 }
 
 async function sendGetRequest(url) {
-	return axios.get(url).then((response) => {
-		if (response && response.status === 200 && response.data) {
-			return response.data;
-		} else {
-			Promise.reject(
-				console.error(
-					`Request to ${url} returns ${response.status} with message ${response.statusText}`
-				)
-			);
-		}
-	});
+	return axios
+		.get(url)
+		.then((response) => {
+			if (response && response.status === 200 && response.data) {
+				return response.data;
+			} else {
+				Promise.reject(
+					console.error(
+						`Request to ${url} returns ${response.status} with message ${response.statusText}`
+					)
+				);
+			}
+		})
+		.catch((err) =>
+			console.error(`Sending request to ${url} failed with message ${err}`)
+		);
 }
 
 async function getCategories() {
@@ -62,14 +81,6 @@ async function getCategories() {
 	} while (pageContent.length > 0);
 
 	return categories;
-}
-
-function buildUrl(page = "", subcat = "") {
-	return (
-		BANK_MEGA_HOSTNAME +
-		BANK_MEGA_MAIN_PAGE_ENDPOINT +
-		`?product=0&subcat=${subcat}&page=${page}`
-	);
 }
 
 async function getPromoDetails(url) {
@@ -113,14 +124,18 @@ async function getPromoByPage(mainPageHtml) {
 		promos.map((promo) => {
 			return getPromoDetails(BANK_MEGA_HOSTNAME + promo.url);
 		})
-	).then((allPromoDetails) => {
-		var promosIndex = 0;
-		allPromoDetails.map((promoDetails) => {
-			Object.assign(promos[promosIndex], promoDetails);
-			promosIndex++;
-		});
-		return promos;
-	});
+	)
+		.then((allPromoDetails) => {
+			var promosIndex = 0;
+			allPromoDetails.map((promoDetails) => {
+				Object.assign(promos[promosIndex], promoDetails);
+				promosIndex++;
+			});
+			return promos;
+		})
+		.catch((err) =>
+			console.error(`Fetching promo details failed with message ${err}`)
+		);
 }
 
 async function getPromosByCategory(category) {
