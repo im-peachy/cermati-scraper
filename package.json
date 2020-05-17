@@ -1,18 +1,17 @@
 {
-  "name": "promotion_scraper",
-  "version": "1.0.0",
-  "description": "",
-  "main": "solution.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "author": "",
-  "license": "ISC",
-  "dependencies": {
-    "axios": "^0.19.2",
-    "bluebird": "^3.7.2",
-    "cheerio": "^1.0.0-rc.3",
-    "nightmare": "^3.0.2",
-    "request": "^2.88.2"
-  }
+	"name": "promotion_scraper",
+	"version": "1.0.0",
+	"description": "",
+	"main": "solution.js",
+	"scripts": {
+		"test": "echo \"Error: no test specified\" && exit 1"
+	},
+	"author": "",
+	"license": "ISC",
+	"dependencies": {
+		"axios": "^0.19.2",
+		"bluebird": "^3.7.2",
+		"cheerio": "^1.0.0-rc.3",
+		"fs": "0.0.1-security"
+	}
 }

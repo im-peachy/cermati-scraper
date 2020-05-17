@@ -1,10 +1,9 @@
 const axios = require("axios");
 const cheerio = require("cheerio");
+const fs = require("fs");
 
 const BANK_MEGA_HOSTNAME = "https://www.bankmega.com/";
 const BANK_MEGA_MAIN_PAGE_ENDPOINT = "promolainnya.php";
-
-let allPromotions = {};
 
 async function scrapeData() {
 	var mainPageHtml = await sendGetRequest(
@@ -13,10 +12,16 @@ async function scrapeData() {
 	var promoDivHtml = cheerio("#contentpromolain2", mainPageHtml).html();
 
 	var categories = await getCategories(promoDivHtml);
-	var promo = await getPromosByCategory(promoDivHtml, "travel");
-	// var lastPageNumber = await getLastPageNumber(promoDivHtml);
-	// var currentPage = await getCurrentPage(promoDivHtml);
-	console.log(categories[0]);
+
+	var allPromotions = {};
+
+	for (const index in categories) {
+		if (categories[index]) {
+			var promotionByCategory = await getPromosByCategory(categories[index]);
+			Object.assign(allPromotions, promotionByCategory);
+		}
+	}
+	saveToJson(allPromotions);
 }
 
 async function sendGetRequest(url) {
@@ -32,17 +37,39 @@ async function sendGetRequest(url) {
 	}
 }
 
-async function getCategories(mainPageResponse) {
+async function getCategories() {
 	var categories = [];
+	var subCatId = 1;
 
-	cheerio("#subcatpromo img", mainPageResponse).map((i, el) => {
-		let category = {};
-		category.title = el.attribs.title;
-		category.id = el.attribs.id;
+	console.log("Getting list of categories...");
+
+	do {
+		var response = await sendGetRequest(buildUrl("", subCatId));
+		var pageContent = await getPromo(response);
+
+		if (pageContent.length === 0) {
+			break;
+		}
+
+		var title = cheerio("#subcatselected img", response).attr("title");
+		var category = {
+			id: subCatId,
+			title,
+		};
+
 		categories.push(category);
-	});
+		subCatId++;
+	} while (pageContent.length > 0);
 
 	return categories;
+}
+
+function buildUrl(page = "", subcat = "") {
+	return (
+		BANK_MEGA_HOSTNAME +
+		BANK_MEGA_MAIN_PAGE_ENDPOINT +
+		`?product=0&subcat=${subcat}&page=${page}`
+	);
 }
 
 async function getPromoDetails(url) {
@@ -56,11 +83,11 @@ async function getPromoDetails(url) {
 	});
 }
 
-async function getPromo(mainPageResponse, category) {
+async function getPromo(mainPageResponse) {
 	let promos = [];
 
 	cheerio("#promolain.clearfix img", mainPageResponse).map((i, element) => {
-		let promo = { category };
+		let promo = {};
 
 		if (element) {
 			if (element.attribs.title) {
@@ -79,8 +106,8 @@ async function getPromo(mainPageResponse, category) {
 	return promos;
 }
 
-async function getPromoWithDetails(mainPageHtml, category) {
-	var promos = await getPromo(mainPageHtml, category);
+async function getPromoByPage(mainPageHtml) {
+	var promos = await getPromo(mainPageHtml);
 	for (const promo of promos) {
 		var details = await getPromoDetails(BANK_MEGA_HOSTNAME + promo.url);
 		promo.details = details;
@@ -88,24 +115,39 @@ async function getPromoWithDetails(mainPageHtml, category) {
 	return promos;
 }
 
-function getLastPageNumber(mainPageHtml) {
-	return parseInt(
-		cheerio("#paging1", mainPageHtml).attr("title").split(" ").pop()
-	);
+async function getPromosByCategory(category) {
+	let promoByCategory = {};
+	let promos = [];
+	let currentPage = 1;
+
+	console.log(`Scraping promotions for ${category.title} category...`);
+	do {
+		var response = await sendGetRequest(buildUrl(currentPage, category.id));
+
+		let pageContentHtml = cheerio("#contentpromolain2", response).html();
+
+		var promo = await getPromoByPage(pageContentHtml);
+
+		if (promo.length === 0) break;
+
+		promos = promos.concat(promo);
+
+		currentPage++;
+	} while (promo.length > 0);
+
+	promoByCategory[category.title] = promos;
+
+	console.log(`Promo data for ${category.title} category saved`);
+
+	return promoByCategory;
 }
 
-function getCurrentPage(mainPageHtml) {
-	return parseInt(cheerio("#paging1", mainPageHtml).attr("page"));
-}
-
-function getPromosByCategory(mainPageHtml, category) {
-	let currentPage = getCurrentPage(mainPageHtml);
-	let lastPage = getLastPageNumber(mainPageHtml);
-	let promos = { category, promo: {} };
-
-	while (currentPage < lastPage) {
-		break;
-	}
+async function saveToJson(promotions) {
+	const promotionsJson = JSON.stringify(promotions, null, 2);
+	const fileName = "solution.json";
+	fs.writeFile(fileName, promotionsJson, "utf-8", () => {
+		console.log(`Promotions data saved to ${fileName}`);
+	});
 }
 
 scrapeData();
