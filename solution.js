@@ -94,7 +94,7 @@ async function getPromo(mainPageResponse) {
 				promo.title = element.attribs.title;
 			}
 			if (element.attribs.src) {
-				promo.imgUrl = element.attribs.src;
+				promo.logoUrl = element.attribs.src;
 			}
 			if (element.parent && element.parent.attribs.href) {
 				promo.url = element.parent.attribs.href;
@@ -112,6 +112,8 @@ async function getPromoDetails(url) {
 		var html = cheerio("#contentpromolain2", response).html();
 		promoDetails.fullTitle = cheerio(".titleinside h3", html).text();
 		promoDetails.area = cheerio(".area b", html).text();
+		promoDetails.imgUrl = cheerio(".keteranganinside img", html).attr("src");
+
 		[promoStartDate, promoEndDate] = cheerio(".periode b", html)
 			.text()
 			.split(" - ");
