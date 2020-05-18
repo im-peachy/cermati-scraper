@@ -29,7 +29,7 @@ async function scrapeData() {
 		);
 }
 
-function buildUrl(page = "", subcat = "") {
+function buildUrl(page, subcat) {
 	return (
 		BANK_MEGA_HOSTNAME +
 		BANK_MEGA_MAIN_PAGE_ENDPOINT +
@@ -83,17 +83,6 @@ async function getCategories() {
 	return categories;
 }
 
-async function getPromoDetails(url) {
-	return sendGetRequest(url).then((response) => {
-		let promoDetails = {};
-		var html = cheerio("#contentpromolain2", response).html();
-		promoDetails.fullTitle = cheerio(".titleinside h3", html).text();
-		promoDetails.area = cheerio(".area b", html).text();
-		promoDetails.promoAvailableDate = cheerio(".periode b", html).text();
-		return promoDetails;
-	});
-}
-
 async function getPromo(mainPageResponse) {
 	let promos = [];
 
@@ -117,7 +106,23 @@ async function getPromo(mainPageResponse) {
 	return promos;
 }
 
-async function getPromoByPage(mainPageHtml) {
+async function getPromoDetails(url) {
+	return sendGetRequest(url).then((response) => {
+		let promoDetails = {};
+		var html = cheerio("#contentpromolain2", response).html();
+		promoDetails.fullTitle = cheerio(".titleinside h3", html).text();
+		promoDetails.area = cheerio(".area b", html).text();
+		[promoStartDate, promoEndDate] = cheerio(".periode b", html)
+			.text()
+			.split(" - ");
+		if (promoStartDate)
+			promoDetails.promoStartDate = toYearMonthDay(promoStartDate);
+		if (promoEndDate) promoDetails.promoEndDate = toYearMonthDay(promoEndDate);
+		return promoDetails;
+	});
+}
+
+async function getPromosByPage(mainPageHtml) {
 	var promos = await getPromo(mainPageHtml);
 
 	return Promise.all(
@@ -139,7 +144,7 @@ async function getPromoByPage(mainPageHtml) {
 }
 
 async function getPromosByCategory(category) {
-	let promoByCategory = {};
+	let promosByCategory = {};
 	let promos = [];
 	let currentPage = 1;
 
@@ -149,7 +154,7 @@ async function getPromosByCategory(category) {
 
 		let pageContentHtml = cheerio("#contentpromolain2", response).html();
 
-		var promo = await getPromoByPage(pageContentHtml);
+		var promo = await getPromosByPage(pageContentHtml);
 
 		if (promo.length === 0) break;
 
@@ -158,11 +163,34 @@ async function getPromosByCategory(category) {
 		currentPage++;
 	} while (promo.length > 0);
 
-	promoByCategory[category.title] = promos;
+	promosByCategory[category.title] = promos;
 
 	console.log(`Promo data for ${category.title} category saved`);
 
-	return promoByCategory;
+	return promosByCategory;
+}
+
+function toYearMonthDay(promoPeriod) {
+	var months = [
+		"Januari",
+		"Februari",
+		"Maret",
+		"April",
+		"Mei",
+		"Juni",
+		"Juli",
+		"Agustus",
+		"September",
+		"Oktober",
+		"November",
+		"Desember",
+	];
+	let [day, month, year] = promoPeriod.split(" ");
+	return {
+		year: Number(year),
+		month: months.indexOf(month) + 1,
+		day: Number(day),
+	};
 }
 
 async function saveToJson(promotions, fileName) {
